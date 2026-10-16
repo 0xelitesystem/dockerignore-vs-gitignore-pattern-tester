@@ -1,0 +1,1397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Dockerignore vs Gitignore Pattern Tester</title>
+<meta name="description" content="Paste one ignore file and a list of paths. See, path by path, whether git's .gitignore rules and Docker's .dockerignore rules each exclude it, which line decided, and the anchoring, trailing slash and re-include rule behind every difference. Runs offline in your browser.">
+<link rel="canonical" href="https://0xelitesystem.github.io/dockerignore-vs-gitignore-pattern-tester/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Dockerignore vs Gitignore Pattern Tester">
+<meta property="og:description" content="One ignore file, two readers. Compare git's gitignore rules and Docker's dockerignore rules path by path, with the deciding line and the named rule for every difference.">
+<meta property="og:url" content="https://0xelitesystem.github.io/dockerignore-vs-gitignore-pattern-tester/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Dockerignore vs Gitignore Pattern Tester","applicationCategory":"DeveloperApplication","operatingSystem":"Any (browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://0xelitesystem.github.io/dockerignore-vs-gitignore-pattern-tester/","author":{"@type":"Person","name":"0xelitesystem","url":"https://elitesystem.ai"}}
+</script>
+<script>
+/* Apply a stored theme before first paint. */
+(function () {
+  try {
+    var t = localStorage.getItem("theme");
+    if (t === "dark" || t === "light") { document.documentElement.setAttribute("data-theme", t); }
+  } catch (e) {}
+})();
+</script>
+<style>
+/* Palette verified by math (WCAG relative luminance), every text token against
+   every surface token, both themes. --muted is a border token only and is never
+   used as a text colour.
+
+   LIGHT, on --bg #e8ebef / --panel #ffffff / --code #dcdfe4
+     --ink #0a0a0a 16.56 19.80 14.82   --ink-soft #3d444d 8.24 9.85 7.37
+     --accent #2d6b00 5.46 6.53 4.89   --ok #1a6127 6.31 7.55 5.65
+     --warn #8a4d00 5.59 6.68 5.00     --err #8f1d0c 7.48 8.94 6.69
+     --info #0f4f7a 7.26 8.68 6.50     button text #ffffff on --accent 6.53
+   DARK, on --bg #0a0a0a / --panel #141414 / --code #1c1c1c
+     --ink #e8ebef 16.56 15.41 14.25   --ink-soft #b9c0c9 10.79 10.04 9.29
+     --accent #d4ff3a 17.12 15.94 14.74 --ok #7ee08a 12.18 11.33 10.48
+     --warn #f0c674 12.29 11.44 10.58  --err #ff9b8a 9.72 9.04 8.36
+     --info #8fd3ff 12.19 11.34 10.49  button text #0a0a0a on --accent 17.12 */
+:root {
+  color-scheme: light;
+  --bg: #e8ebef; --panel: #ffffff; --code: #dcdfe4;
+  --ink: #0a0a0a; --ink-soft: #3d444d; --accent: #2d6b00; --on-accent: #ffffff;
+  --ok: #1a6127; --warn: #8a4d00; --err: #8f1d0c; --info: #0f4f7a;
+  --muted: #5b636e;
+  --mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0a0a; --panel: #141414; --code: #1c1c1c;
+    --ink: #e8ebef; --ink-soft: #b9c0c9; --accent: #d4ff3a; --on-accent: #0a0a0a;
+    --ok: #7ee08a; --warn: #f0c674; --err: #ff9b8a; --info: #8fd3ff;
+    --muted: #8f98a3;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0a0a; --panel: #141414; --code: #1c1c1c;
+  --ink: #e8ebef; --ink-soft: #b9c0c9; --accent: #d4ff3a; --on-accent: #0a0a0a;
+  --ok: #7ee08a; --warn: #f0c674; --err: #ff9b8a; --info: #8fd3ff;
+  --muted: #8f98a3;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0; padding: 0 1rem 4rem; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); }
+.wrap { max-width: 72rem; margin: 0 auto; }
+header.top { display: flex; gap: 1rem; justify-content: space-between; align-items: flex-start; padding: 2rem 0 1rem; border-bottom: 1px solid var(--muted); }
+h1 { font-size: 1.7rem; line-height: 1.2; margin: 0 0 .35rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; }
+h3 { font-size: 1.05rem; margin: 1.3rem 0 .4rem; }
+p { margin: .6rem 0; }
+.lede { color: var(--ink-soft); margin: 0; max-width: 52rem; }
+.note { color: var(--ink-soft); font-size: .93rem; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible, summary:focus-visible {
+  outline: 3px solid var(--accent); outline-offset: 2px;
+}
+code, kbd, pre { font-family: var(--mono); font-size: .9rem; }
+.panel { background: var(--panel); border: 1px solid var(--muted); border-radius: 6px; padding: 1rem; margin: 1rem 0; }
+.grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+@media (min-width: 60rem) { .grid.two { grid-template-columns: 1fr 1fr; } }
+label { display: block; font-weight: 600; margin: .8rem 0 .25rem; }
+label .hint, .hint { font-weight: 400; color: var(--ink-soft); font-size: .88rem; }
+label.inline { display: inline-flex; gap: .4rem; align-items: center; font-weight: 400; margin: 0; }
+textarea, input[type="text"] {
+  width: 100%; font-family: var(--mono); font-size: .9rem; color: var(--ink);
+  background: var(--code); border: 1px solid var(--muted); border-radius: 4px; padding: .5rem .6rem;
+}
+textarea { min-height: 11rem; resize: vertical; line-height: 1.45; }
+button {
+  font: inherit; font-size: .95rem; cursor: pointer; border-radius: 4px; padding: .45rem .8rem;
+  background: var(--code); color: var(--ink); border: 1px solid var(--muted);
+}
+button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+button:hover { border-color: var(--accent); }
+.examples { display: flex; flex-wrap: wrap; gap: .5rem; margin: .5rem 0 0; }
+.tag { display: inline-block; font-family: var(--mono); font-size: .8rem; font-weight: 700; padding: .05rem .45rem; border: 1px solid currentColor; border-radius: 3px; margin-right: .4rem; }
+.t-ok { color: var(--ok); } .t-err { color: var(--err); } .t-warn { color: var(--warn); } .t-info { color: var(--info); }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: .35rem .5rem; border-bottom: 1px solid var(--muted); }
+td code { word-break: break-all; }
+caption { text-align: left; font-weight: 600; padding: .3rem 0; }
+.tablewrap { overflow-x: auto; }
+#result table { min-width: 44rem; }
+tr.differs > td:first-child { border-left: 4px solid var(--warn); }
+tr.why td { color: var(--ink); background: var(--panel); font-size: .88rem; border-left: 4px solid var(--warn); }
+.line { display: block; font-family: var(--mono); font-size: .82rem; color: var(--ink-soft); }
+.noeffect { display: block; font-family: var(--mono); font-size: .82rem; color: var(--ink-soft); text-decoration: line-through; }
+ul.tight { margin: .3rem 0; padding-left: 1.3rem; }
+ul.tight li { margin: .15rem 0; }
+.err-box { border: 1px solid var(--err); color: var(--err); background: var(--panel); border-radius: 4px; padding: .5rem .7rem; margin: .5rem 0; }
+.warn-box { border: 1px solid var(--warn); color: var(--ink); background: var(--panel); border-radius: 4px; padding: .5rem .7rem; margin: .5rem 0; }
+.warn-box strong { color: var(--warn); }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--muted); color: var(--ink-soft); font-size: .9rem; }
+.row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+dl.rules dt { font-family: var(--mono); font-weight: 700; margin-top: .6rem; }
+dl.rules dd { margin: .1rem 0 0 1.2rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div>
+    <h1>Dockerignore vs Gitignore Pattern Tester</h1>
+    <p class="lede">One ignore file, two readers. Paste the file and a list of paths. For every path the page shows whether git's gitignore rules ignore it and whether Docker's dockerignore rules exclude it from the build context, which line decided each answer, and the named rule behind every row where the two disagree. Both tools follow their own published rules; the difference only bites when one file is reused as the other.</p>
+  </div>
+  <button type="button" id="theme-toggle" aria-label="Switch to dark theme">Dark</button>
+</header>
+
+<main>
+<section aria-labelledby="h-input">
+<h2 id="h-input">1. The ignore file and the paths</h2>
+<p class="note">Load an example or type your own. Everything is evaluated in this page; nothing is sent anywhere.</p>
+<div class="examples" id="examples" role="group" aria-label="Load an example"></div>
+<div class="grid two">
+  <div class="panel">
+    <label for="in-ignore">Ignore file <span class="hint">read as a root .gitignore by the git column and as .dockerignore by the Docker column</span></label>
+    <textarea id="in-ignore" spellcheck="false" autocomplete="off"></textarea>
+  </div>
+  <div class="panel">
+    <label for="in-paths">Paths <span class="hint">one per line, relative to the root; end a directory with /</span></label>
+    <textarea id="in-paths" spellcheck="false" autocomplete="off"></textarea>
+    <label for="in-dockerfile">Dockerfile path <span class="hint">optional, relative to the build context; decides which ignore file Docker reads (D7)</span></label>
+    <input type="text" id="in-dockerfile" spellcheck="false" autocomplete="off">
+  </div>
+</div>
+<div class="row">
+  <button type="button" class="primary" id="btn-run">Compare</button>
+  <label class="inline" for="in-diffonly"><input type="checkbox" id="in-diffonly"> Show differences only</label>
+  <span class="hint">Results also update as you type.</span>
+</div>
+</section>
+
+<section aria-labelledby="h-out">
+<h2 id="h-out">2. Path by path</h2>
+<div id="summary" aria-live="polite"></div>
+<div id="notes"></div>
+<div class="tablewrap" id="result"></div>
+</section>
+
+<section aria-labelledby="h-rules">
+<h2 id="h-rules">3. The rules each column applies</h2>
+<div class="grid two">
+<div class="panel">
+<h3>git (gitignore(5), PATTERN FORMAT)</h3>
+<dl class="rules">
+  <dt>G1</dt><dd>A blank line matches nothing. A line starting with # is a comment; a backslash before the first # makes it a literal.</dd>
+  <dt>G2</dt><dd>Trailing spaces are ignored unless quoted with a backslash.</dd>
+  <dt>G3</dt><dd>A leading ! re-includes a file excluded by an earlier pattern. gitignore(5): "It is not possible to re-include a file if a parent directory of that file is excluded."</dd>
+  <dt>G4</dt><dd>gitignore(5): "If there is a separator at the beginning or middle (or both) of the pattern, then the pattern is relative to the directory level of the particular .gitignore file itself. Otherwise the pattern may also match at any level below the .gitignore level."</dd>
+  <dt>G5</dt><dd>gitignore(5): "If there is a separator at the end of the pattern then the pattern will only match directories, otherwise the pattern can match both files and directories."</dd>
+  <dt>G6</dt><dd>* and ? never match a slash; [a-z] ranges follow fnmatch with FNM_PATHNAME. gitignore(5): "a backslash at the end of a pattern is an invalid pattern that never matches."</dd>
+  <dt>G7</dt><dd>A leading **/, a trailing /** and a /**/ in the middle span directories. Any other run of asterisks acts as an ordinary asterisk.</dd>
+</dl>
+<p class="note">Deciding line: gitignore(5) says "within one level of precedence, the last matching pattern decides the outcome". When a parent directory is excluded, the line that excluded the parent decides, and a later ! line for the child is shown struck through as having no effect.</p>
+</div>
+<div class="panel">
+<h3>Docker (docs plus moby/patternmatcher and tonistiigi/fsutil source)</h3>
+<dl class="rules">
+  <dt>D1</dt><dd>Reading the file: a UTF-8 byte order mark on line 1 is stripped, a line starting with # is a comment, whitespace is trimmed, each pattern is cleaned and one leading slash is removed. Docker docs: "Leading and trailing slashes in ignore patterns are disregarded." and "For historical reasons, the pattern . is ignored."</dd>
+  <dt>D2</dt><dd>Docker docs: "Matching is done using Go's filepath.Match function rules." The patternmatcher source compiles each pattern to its own regular expression anchored at both ends, so every pattern is anchored at the context root; ** matches any number of directories.</dd>
+  <dt>D3</dt><dd>A pattern matches a path when it matches the path or one of its parent directories. Docker docs: "the last line of the .dockerignore that matches a particular file determines whether it's included or excluded."</dd>
+  <dt>D4</dt><dd>A ! line is tested against the file itself, so a ! line naming a path inside an excluded directory re-includes it in Docker. fsutil skips walking an excluded directory only when no exception line could match inside it.</dd>
+  <dt>D5</dt><dd>No implicit **/ in front: target excludes target and target/x, not src/target/x. Docker docs, on *.md then !README.md: "Note that markdown files under subdirectories are still included."</dd>
+  <dt>D6</dt><dd>The trailing slash is removed when the pattern is cleaned, so foo/ also excludes a file named foo.</dd>
+  <dt>D7</dt><dd>Docker docs: "A Dockerfile-specific ignore-file takes precedence over the .dockerignore file at the root of the build context if both exist." The specific file sits next to the Dockerfile and is named after it.</dd>
+  <dt>D8</dt><dd>An excluded Dockerfile or .dockerignore is still sent. Docker docs: "These files are still sent to the builder as they're needed for running the build. But you can't copy the files into the image using ADD , COPY , or bind mounts."</dd>
+</dl>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="h-self">
+<h2 id="h-self">4. Self test</h2>
+<p class="note">Every case runs through the same two evaluators as section 2. Expected answers come from the cited rule text; the eleven row worked example was also run through git check-ignore and through a real Docker build (see the README). The last row is a positive control: an assertion written to be wrong. If it ever reports that it held, the suite is not really running.</p>
+<p id="self-summary"></p>
+<button type="button" id="btn-self">Run the self test again</button>
+<div class="tablewrap" id="self"></div>
+</section>
+
+<section aria-labelledby="h-scope">
+<h2 id="h-scope">5. What this page models, and what it does not</h2>
+<div class="panel">
+<ul class="tight">
+  <li>git column: ONE .gitignore at the root. Nested .gitignore files, info/exclude and core.excludesFile are not modelled, and neither is core.ignorecase (matching here is case sensitive). gitignore(5) also says "Files already tracked by Git are not affected", so a tracked file stays tracked whatever this page says. For the git side alone, git check-ignore -v gives the same answer and is the command to use.</li>
+  <li>Docker column: the client side walk of a local build context on Linux or macOS, where a backslash escapes the next character. On a Windows client patternmatcher treats a backslash as a path separator; that is not modelled.</li>
+  <li>Not modelled: symbolic links, file permissions, case insensitive file systems, and Docker pattern escapes other than \d \D \w \W \s \S \b \B \f \n \r \t \v. Those listed are read the way Go's regular expression engine reads them (\d as a digit class, for example) and flagged when they appear.</li>
+  <li>patternmatcher's escape table only covers characters below code 64, so |, { and } in a wildcard line reach Go's regular expression engine unescaped: the line [ab]| matches every path. The Docker column follows that reading and flags the line.</li>
+  <li>A helper that rewrites a .gitignore into an equivalent .dockerignore is out of scope: equivalence cannot be proved from this page.</li>
+</ul>
+<p class="note">This is an independent tool. It is not affiliated with or endorsed by Docker, Inc. or the Git project.</p>
+</div>
+</section>
+</main>
+
+<footer>
+  <p>MIT licensed. Single file, no network calls, no storage beyond your theme choice. Source: <a href="https://github.com/0xelitesystem/dockerignore-vs-gitignore-pattern-tester">github.com/0xelitesystem/dockerignore-vs-gitignore-pattern-tester</a>. Built by <a href="https://elitesystem.ai">elitesystem.ai</a>.</p>
+</footer>
+</div>
+
+<script>
+/* THIRD-PARTY NOTICES FOR THIS FILE
+
+Parts of the Docker column in the script below are JavaScript translations of Go source. They were changed
+by 0xelitesystem in 2026: translated from Go to JavaScript and adapted to evaluate a pasted list of paths
+instead of walking a directory. Everything else in this file is MIT licensed, Copyright (c) 2026
+0xelitesystem (see the LICENSE file).
+
+- goMatchSyntax (its scanChunk, getEsc and matchChunk helpers and the main loop) translates filepath.Match
+  from the Go standard library, src/path/filepath/match.go, https://github.com/golang/go. BSD-3-Clause;
+  the Go LICENSE text follows.
+- The reading loop in parseDocker, dockerCompile, dockerPatMatch and dockerMatchNode translate
+  ignorefile.ReadAll, Pattern.compile, Pattern.match and PatternMatcher.MatchesUsingParentResults from
+  moby/patternmatcher, https://github.com/moby/patternmatcher, read at commit
+  5a6d8429a19bb6948a372ff19e86fe83599a04b7. Apache License 2.0; its NOTICE file and LICENSE text follow.
+- withoutTrailingGlob, the onlyPrefix test in parseDocker and the directory skip in dockerEval translate
+  patternWithoutTrailingGlob, NewFilterFS and filterFS.Walk from tonistiigi/fsutil filter.go,
+  https://github.com/tonistiigi/fsutil, read at commit c1c5bffae3b59e780de4d832ef10a508d93c37cb. MIT; the
+  fsutil LICENSE text follows.
+
+The Go regular expression matcher (goRegex) and the git column were written for this page from the
+published syntax rules and gitignore(5); they are not translations.
+
+==== Go (golang/go), LICENSE ====
+
+Copyright 2009 The Go Authors.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google LLC nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+==== moby/patternmatcher, NOTICE ====
+
+Docker
+Copyright 2012-2017 Docker, Inc.
+
+This product includes software developed at Docker, Inc. (https://www.docker.com).
+
+The following is courtesy of our legal counsel:
+
+
+Use and transfer of Docker may be subject to certain restrictions by the
+United States and other governments.
+It is your responsibility to ensure that your use and/or transfer does not
+violate applicable laws.
+
+For more information, please see https://www.bis.doc.gov
+
+See also https://www.apache.org/dev/crypto.html and/or seek legal counsel.
+
+==== moby/patternmatcher, LICENSE ====
+
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        https://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   Copyright 2013-2018 Docker, Inc.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       https://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+==== tonistiigi/fsutil, LICENSE ====
+
+MIT
+
+Copyright 2017 Tõnis Tiigi <tonistiigi@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+END OF THIRD-PARTY NOTICES */
+(function () {
+"use strict";
+
+/* ENGINE START */
+var ENGINE = (function () {
+
+/* ---------- shared ---------- */
+function splitLines(text) {
+  /* Go's bufio ScanLines: split on LF, drop one trailing CR, no empty token after a final LF. */
+  var parts = String(text).split("\n");
+  if (parts.length && parts[parts.length - 1] === "") { parts.pop(); }
+  return parts;
+}
+
+/* ---------- path list ---------- */
+function parsePaths(text) {
+  var out = [], notes = [], sawBack = false, sawCR = false, lines = String(text).split("\n");
+  for (var i = 0; i < lines.length; i++) {
+    var s = lines[i];
+    if (s.slice(-1) === "\r") { s = s.slice(0, -1); sawCR = true; }
+    if (s.trim() === "") { continue; }
+    var raw = s;
+    if (s.indexOf("\\") >= 0) { s = s.replace(/\\/g, "/"); sawBack = true; }
+    var isDir = /\/$/.test(s);
+    var segs = s.split("/").filter(function (x) { return x !== "" && x !== "."; });
+    if (segs.indexOf("..") >= 0) { out.push({ raw: raw, error: "a .. segment leaves the root; skipped" }); continue; }
+    if (!segs.length) { out.push({ raw: raw, error: "nothing left after normalising; skipped" }); continue; }
+    out.push({ raw: raw, path: segs.join("/"), isDir: isDir });
+  }
+  if (sawBack) { notes.push("Backslashes in the path list were read as / (Windows separators)."); }
+  if (sawCR) { notes.push("The path list had CRLF line endings; the CR characters were removed."); }
+  return { paths: out, notes: notes };
+}
+
+/* ---------- git: gitignore(5) ---------- */
+function gitTrimTrailing(s) {
+  var last = -1;
+  for (var i = 0; i < s.length; i++) {
+    var c = s[i];
+    if (c === " ") { if (last < 0) { last = i; } continue; }
+    if (c === "\\") { i++; if (i >= s.length) { return s; } }
+    last = -1;
+  }
+  return last >= 0 ? s.slice(0, last) : s;
+}
+function bracketClosed(p, i) {
+  /* i points at "[". Returns index after the closing "]" or -1. */
+  var j = i + 1;
+  if (p[j] === "!" || p[j] === "^") { j++; }
+  if (p[j] === "]") { j++; }
+  while (j < p.length) {
+    if (p[j] === "\\") { j += 2; continue; }
+    if (p[j] === "[" && p[j + 1] === ":") {
+      var e = p.indexOf(":]", j + 2);
+      if (e > 0) { j = e + 2; continue; }
+    }
+    if (p[j] === "]") { return j + 1; }
+    j++;
+  }
+  return -1;
+}
+var POSIX = {
+  alnum: /[A-Za-z0-9]/, alpha: /[A-Za-z]/, blank: /[ \t]/, cntrl: /[\x00-\x1f\x7f]/, digit: /[0-9]/,
+  graph: /[\x21-\x7e]/, lower: /[a-z]/, print: /[\x20-\x7e]/, punct: /[!-\/:-@\[-`{-~]/, space: /[ \t\n\r\f\v]/,
+  upper: /[A-Z]/, xdigit: /[0-9A-Fa-f]/
+};
+function classMatch(p, i, ch) {
+  /* p[i] is "["; returns { end, hit } with hit for character ch. */
+  var j = i + 1, neg = false, hit = false, first = true;
+  if (p[j] === "!" || p[j] === "^") { neg = true; j++; }
+  while (j < p.length) {
+    var c = p[j];
+    if (c === "]" && !first) { j++; break; }
+    first = false;
+    if (c === "[" && p[j + 1] === ":") {
+      var e = p.indexOf(":]", j + 2);
+      if (e > 0) {
+        var nm = p.slice(j + 2, e);
+        if (POSIX[nm] && POSIX[nm].test(ch)) { hit = true; }
+        j = e + 2; continue;
+      }
+    }
+    if (c === "\\") { j++; c = p[j]; }
+    var lo = c; j++;
+    if (p[j] === "-" && p[j + 1] !== undefined && p[j + 1] !== "]") {
+      var hi = p[j + 1]; j += 2;
+      if (hi === "\\") { hi = p[j]; j++; }
+      if (ch >= lo && ch <= hi) { hit = true; }
+    } else if (ch === lo) { hit = true; }
+  }
+  return { end: j, hit: neg ? !hit : hit };
+}
+function wildmatch(p, t) {
+  /* gitignore(5) matching with FNM_PATHNAME semantics. p and t are arrays of characters.
+     Tokenised once, then matched with a table filled from the end of both strings: time is
+     (pattern tokens) x (path length), so no pattern can make it backtrack. */
+  var toks = [], pi = 0;
+  while (pi < p.length) {
+    var c = p[pi];
+    if (c === "*") {
+      var k = pi; while (p[k] === "*") { k++; }
+      var dbl = (k - pi) >= 2 && (pi === 0 || p[pi - 1] === "/") && (k === p.length || p[k] === "/");
+      if (dbl && k === p.length) { toks.push({ k: "all" }); pi = k; }       /* trailing "**": everything below */
+      else if (dbl) { toks.push({ k: "dirs" }); pi = k + 1; }               /* "**" then "/": zero or more directories */
+      else { toks.push({ k: "star" }); pi = k; }                            /* ordinary asterisk: anything but "/" */
+      continue;
+    }
+    if (c === "?") { toks.push({ k: "one" }); pi++; continue; }
+    if (c === "[") { toks.push({ k: "cls", at: pi }); pi = classMatch(p, pi, "").end; continue; }
+    if (c === "\\") { pi++; c = p[pi]; }
+    toks.push({ k: "lit", c: c }); pi++;
+  }
+  var n = t.length, next = new Uint8Array(n + 1), cur = new Uint8Array(n + 1), x, swap;
+  next[n] = 1;
+  for (var i = toks.length - 1; i >= 0; i--) {
+    var tk = toks[i];
+    if (tk.k === "all") { cur.fill(1); }
+    else if (tk.k === "star") { cur[n] = next[n]; for (x = n - 1; x >= 0; x--) { cur[x] = (next[x] || (t[x] !== "/" && cur[x + 1])) ? 1 : 0; } }
+    else if (tk.k === "dirs") {
+      var e = 0; cur[n] = next[n];
+      for (x = n - 1; x >= 0; x--) { e = ((t[x] === "/" && next[x + 1]) || e) ? 1 : 0; cur[x] = (next[x] || e) ? 1 : 0; }
+    } else {
+      cur[n] = 0;
+      for (x = 0; x < n; x++) {
+        var ch = t[x], ok = tk.k === "one" ? ch !== "/" : tk.k === "cls" ? (ch !== "/" && classMatch(p, tk.at, ch).hit) : ch === tk.c;
+        cur[x] = (ok && next[x + 1]) ? 1 : 0;
+      }
+    }
+    swap = next; next = cur; cur = swap;
+  }
+  return next[0] === 1;
+}
+function parseGit(text) {
+  var lines = splitLines(text), recs = [], warnings = [];
+  if (/\r/.test(text)) { warnings.push("The file has CRLF line endings. Both columns here strip the CR. Docker's reader drops it; for git it depends on how the file was checked out (core.autocrlf), so a CR left in the file becomes part of the pattern."); }
+  for (var i = 0; i < lines.length; i++) {
+    var s = lines[i];
+    if (s.slice(-1) === "\r") { s = s.slice(0, -1); }
+    if (i === 0 && s.charCodeAt(0) === 0xFEFF) { s = s.slice(1); warnings.push("Line 1 starts with a UTF-8 byte order mark. Docker strips it (D1). gitignore(5) says nothing about it; this page strips it for git too, which is not a documented git rule."); }
+    var rec = { n: i + 1, text: s, kind: "pattern" };
+    recs.push(rec);
+    if (s === "") { rec.kind = "blank"; continue; }
+    if (s[0] === "#") { rec.kind = "comment"; continue; }
+    var t = gitTrimTrailing(s);
+    if (t === "") { rec.kind = "blank"; continue; }
+    var neg = false;
+    if (t[0] === "!") { neg = true; t = t.slice(1); }
+    var mustDir = false;
+    if (t.length && t[t.length - 1] === "/") { mustDir = true; t = t.slice(0, -1); }
+    var nodir = t.indexOf("/") < 0;
+    var pat = (!nodir && t[0] === "/") ? t.slice(1) : t;
+    rec.neg = neg; rec.mustDir = mustDir; rec.nodir = nodir; rec.pat = pat;
+    var bs = 0; for (var b = pat.length - 1; b >= 0 && pat[b] === "\\"; b--) { bs++; }
+    if (bs % 2 === 1) { rec.kind = "invalid"; rec.why = "ends with a backslash: gitignore(5) says this is an invalid pattern that never matches (G6)"; continue; }
+    if (pat === "") { rec.kind = "invalid"; rec.why = "the pattern is empty after removing ! and slashes, so it matches nothing"; continue; }
+    for (var q = 0; q < pat.length; q++) {
+      if (pat[q] === "\\") { q++; continue; }
+      if (pat[q] === "[" && bracketClosed(pat, q) < 0) { rec.kind = "unmodelled"; rec.why = "has an unclosed [ ; gitignore(5) does not say what git does with it, so this page skips the line for git"; break; }
+    }
+    rec.chars = Array.from(pat);
+  }
+  return { recs: recs, warnings: warnings, active: recs.filter(function (r) { return r.kind === "pattern"; }) };
+}
+function gitMatchNode(r, path, isDir) {
+  if (r.mustDir && !isDir) { return false; }
+  var target = r.nodir ? path.slice(path.lastIndexOf("/") + 1) : path;
+  return wildmatch(r.chars, Array.from(target));
+}
+function gitDecide(G, path, isDir) {
+  var hit = null;
+  for (var i = 0; i < G.active.length; i++) { if (gitMatchNode(G.active[i], path, isDir)) { hit = G.active[i]; } }
+  return hit;
+}
+function gitEval(G, path, isDir, cache) {
+  var segs = path.split("/"), cur = "";
+  for (var k = 0; k < segs.length - 1; k++) {
+    cur = cur ? cur + "/" + segs[k] : segs[k];
+    var d;
+    if (cache && cache.has(cur)) { d = cache.get(cur); } else { d = gitDecide(G, cur, true); if (cache) { cache.set(cur, d); } }
+    if (d && !d.neg) {
+      var noEffect = G.active.filter(function (r) { return r.neg && r.n > d.n && gitMatchNode(r, path, isDir); });
+      return { ignored: true, line: d, viaParent: cur, noEffect: noEffect };
+    }
+  }
+  var h = gitDecide(G, path, isDir);
+  return { ignored: !!(h && !h.neg), line: h, viaParent: null, noEffect: [] };
+}
+
+/* ---------- Docker: moby/patternmatcher + tonistiigi/fsutil ---------- */
+var GO_SPACE = /^[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/g;
+function goTrim(s) { return s.replace(GO_SPACE, ""); }
+function goClean(p) {
+  if (p === "") { return "."; }
+  var rooted = p[0] === "/", segs = p.split("/"), out = [];
+  for (var i = 0; i < segs.length; i++) {
+    var s = segs[i];
+    if (s === "" || s === ".") { continue; }
+    if (s === "..") {
+      if (out.length && out[out.length - 1] !== "..") { out.pop(); }
+      else if (!rooted) { out.push(".."); }
+      continue;
+    }
+    out.push(s);
+  }
+  var r = (rooted ? "/" : "") + out.join("/");
+  return r === "" ? (rooted ? "/" : ".") : r;
+}
+function goMatchSyntax(p) {
+  /* Runs the pattern through Go's filepath.Match algorithm (non-Windows) against the name ".",
+     which is how patternmatcher checks syntax. Only the parts Match actually reaches can error. */
+  var BAD = "syntax error in pattern";
+  function scanChunk(pat) {
+    var star = false, i = 0, inrange = false;
+    while (pat.length && pat[0] === "*") { pat = pat.slice(1); star = true; }
+    for (i = 0; i < pat.length; i++) {
+      var c = pat[i];
+      if (c === "\\") { if (i + 1 < pat.length) { i++; } }
+      else if (c === "[") { inrange = true; }
+      else if (c === "]") { inrange = false; }
+      else if (c === "*" && !inrange) { break; }
+    }
+    return { star: star, chunk: pat.slice(0, i), rest: pat.slice(i) };
+  }
+  function getEsc(ch) {
+    if (!ch.length || ch[0] === "-" || ch[0] === "]") { return { err: BAD }; }
+    if (ch[0] === "\\") { ch = ch.slice(1); if (!ch.length) { return { err: BAD }; } }
+    var r = ch[0], n = ch.slice(1);
+    if (!n.length) { return { err: BAD }; }
+    return { r: r, chunk: n };
+  }
+  function matchChunk(chunk, s) {
+    var failed = false;
+    while (chunk.length) {
+      failed = failed || s.length === 0;
+      var c = chunk[0];
+      if (c === "[") {
+        var r = null;
+        if (!failed) { r = s[0]; s = s.slice(1); }
+        chunk = chunk.slice(1);
+        var negated = false;
+        if (chunk.length && chunk[0] === "^") { negated = true; chunk = chunk.slice(1); }
+        var match = false, nrange = 0;
+        for (;;) {
+          if (chunk.length && chunk[0] === "]" && nrange > 0) { chunk = chunk.slice(1); break; }
+          var e = getEsc(chunk); if (e.err) { return { err: e.err }; }
+          var lo = e.r, hi = lo; chunk = e.chunk;
+          if (chunk[0] === "-") { var e2 = getEsc(chunk.slice(1)); if (e2.err) { return { err: e2.err }; } hi = e2.r; chunk = e2.chunk; }
+          if (r !== null && lo.codePointAt(0) <= r.codePointAt(0) && r.codePointAt(0) <= hi.codePointAt(0)) { match = true; }
+          nrange++;
+        }
+        failed = failed || match === negated;
+        continue;
+      }
+      if (c === "?") {
+        if (!failed) { failed = s[0] === "/"; s = s.slice(1); }
+        chunk = chunk.slice(1);
+        continue;
+      }
+      if (c === "\\") { chunk = chunk.slice(1); if (!chunk.length) { return { err: BAD }; } }
+      if (!failed) { failed = chunk[0] !== s[0]; s = s.slice(1); }
+      chunk = chunk.slice(1);
+    }
+    if (failed) { return { ok: false }; }
+    return { ok: true, rest: s };
+  }
+  var pattern = Array.from(p), name = ["."];
+  outer:
+  while (pattern.length) {
+    var sc = scanChunk(pattern); pattern = sc.rest;
+    if (sc.star && !sc.chunk.length) { return null; }
+    var m = matchChunk(sc.chunk, name);
+    if (m.ok && (m.rest.length === 0 || pattern.length > 0)) { name = m.rest; continue; }
+    if (m.err) { return m.err; }
+    if (sc.star) {
+      for (var i = 0; i < name.length && name[i] !== "/"; i++) {
+        var m2 = matchChunk(sc.chunk, name.slice(i + 1));
+        if (m2.ok) {
+          if (!pattern.length && m2.rest.length) { continue; }
+          name = m2.rest; continue outer;
+        }
+        if (m2.err) { return m2.err; }
+      }
+    }
+    return null;
+  }
+  return null;
+}
+/* Characters Pattern.compile escapes before handing the string to Go's regexp package. Its source lists
+   .+()|{}$, but its escapeBytes table is [8]byte indexed b%8 with bit b/8, so only code points below 64
+   are ever set: | { and } reach the regular expression unescaped. Verified against patternmatcher v0.6.1,
+   the version Docker CLI 29.8.2 and buildx v0.37.2 depend on: the line [ab]| matches every path. */
+var GO_ESCAPED = ".+()$";
+function goRegex(src, warn) {
+  /* Parses the Go regexp string built by Pattern.compile (RE2 syntax, default flags) into a program for a
+     Thompson style simulation. Linear in (program size) x (path length) whatever the pattern, which is how
+     Go's own engine behaves; a backtracking JS RegExp would freeze the page on a line like *a*a*a*a*a*a*b. */
+  var a = Array.from(src), i = 0, lastRepeat = false;
+  function Fail(msg) { this.goErr = msg; }
+  function Unm(msg) { this.unm = msg; }
+  function isWord(c) { return c !== undefined && /[0-9A-Za-z_]/.test(c); }
+  var PERL = { d: /[0-9]/, s: /[\t\n\f\r ]/, w: /[0-9A-Za-z_]/ };
+  function perl(l) { var re = PERL[l.toLowerCase()], neg = l !== l.toLowerCase(); return function (c) { return re.test(c) !== neg; }; }
+  var CTRL = { f: "\f", n: "\n", r: "\r", t: "\t", v: "\v" };
+  function escChar(inClass) {
+    /* i points just past the backslash; returns the literal character an escape stands for */
+    var c = a[i];
+    if (c === undefined) { throw new Fail("trailing backslash at end of expression"); }
+    if (/[A-Za-z0-9]/.test(c)) {
+      if ("dDwWsSbBftnrv".indexOf(c) < 0) { throw new Unm("contains \\" + c + "; how Go's regular expression engine reads that escape is not modelled"); }
+      if (!inClass) { warn.push("contains \\" + c + ", which Go's regular expression engine reads as a special escape, not a literal " + c); }
+      if (CTRL[c]) { i++; return CTRL[c]; }
+      throw new Fail("invalid escape sequence: \\" + c);
+    }
+    if (c.codePointAt(0) >= 128) { throw new Fail("invalid escape sequence: \\" + c); }
+    i++; return c;
+  }
+  function parseRepeat() {
+    /* a[i] is "{". Go reads {n}, {n,} or {n,m} as a repeat; anything else is a literal "{". */
+    var j = i + 1, num = function () { var s = j; while (/[0-9]/.test(a[j] || "")) { j++; } if (j === s || (j - s >= 2 && a[s] === "0")) { return null; } var v = Number(a.slice(s, j).join("")); return v > 1e8 ? -2 : v; };
+    var min = num(); if (min === null || j >= a.length) { return null; }
+    var max = min;
+    if (a[j] === ",") { j++; if (j >= a.length) { return null; } if (a[j] === "}") { max = -1; } else { max = num(); if (max === null) { return null; } if (max === -2) { min = -2; } } }
+    if (a[j] !== "}") { return null; }
+    return { min: min, max: max, end: j + 1 };
+  }
+  function parseClass() {
+    i++;
+    var neg = false, parts = [], first = true;
+    if (a[i] === "^") { neg = true; i++; }
+    while (i >= a.length || a[i] !== "]" || first) {
+      if (i >= a.length) { throw new Fail("missing closing ]"); }
+      first = false;
+      if (a[i] === "[" && a[i + 1] === ":") { throw new Unm("contains a [: class, which Go's regular expression engine reads as a POSIX class; not modelled"); }
+      if (a[i] === "\\" && /[dDwWsS]/.test(a[i + 1] || "")) { warn.push("contains \\" + a[i + 1] + ", which Go's regular expression engine reads as a special escape, not a literal " + a[i + 1]); parts.push(perl(a[i + 1])); i += 2; continue; }
+      var lo = a[i] === "\\" ? (i++, escChar(true)) : a[i++], hi = lo;
+      if (i + 1 < a.length && a[i] === "-" && a[i + 1] !== "]") {
+        i++;
+        hi = a[i] === "\\" ? (i++, escChar(true)) : a[i++];
+        if (hi.codePointAt(0) < lo.codePointAt(0)) { throw new Fail("invalid character class range"); }
+      }
+      parts.push((function (l, h) { return function (c) { var v = c.codePointAt(0); return v >= l && v <= h; }; })(lo.codePointAt(0), hi.codePointAt(0)));
+    }
+    i++;
+    return { t: "ch", f: function (c) { var hit = false; for (var k = 0; k < parts.length && !hit; k++) { hit = parts[k](c); } return hit !== neg; } };
+  }
+  function parseAtom() {
+    var c = a[i];
+    if (c === "(") { i++; var sub = parseAlt(); if (a[i] !== ")") { throw new Fail("missing closing )"); } i++; return { t: "grp", sub: sub }; }
+    if (c === ".") { i++; return { t: "ch", f: function (x) { return x !== "\n"; } }; }
+    if (c === "^") { i++; return { t: "bot" }; }
+    if (c === "$") { i++; return { t: "eot" }; }
+    if (c === "[") { return parseClass(); }
+    if (c === "\\") {
+      var l = a[i + 1];
+      if (l === "b" || l === "B") { warn.push("contains \\" + l + ", which Go's regular expression engine reads as a special escape, not a literal " + l); i += 2; return { t: l === "b" ? "wb" : "nwb" }; }
+      if (/[dDwWsS]/.test(l || "")) { warn.push("contains \\" + l + ", which Go's regular expression engine reads as a special escape, not a literal " + l); i += 2; return { t: "ch", f: perl(l) }; }
+      i++; var lit = escChar(false); return { t: "ch", f: function (x) { return x === lit; } };
+    }
+    i++; return { t: "ch", f: function (x) { return x === c; } };
+  }
+  function parseConcat() {
+    var items = [];
+    while (i < a.length && a[i] !== "|" && a[i] !== ")") {
+      var c = a[i], rep = null;
+      if (c === "*" || c === "+" || c === "?") { rep = { min: c === "+" ? 1 : 0, max: c === "?" ? 1 : -1, end: i + 1 }; }
+      else if (c === "{") { rep = parseRepeat(); if (!rep) { i++; items.push({ t: "ch", f: function (x) { return x === "{"; } }); lastRepeat = false; continue; } }
+      if (rep) {
+        if (rep.min < 0 || rep.min > 1000 || rep.max > 1000 || (rep.max >= 0 && rep.min > rep.max)) { throw new Fail("invalid repeat count"); }
+        if (lastRepeat) { throw new Fail("invalid nested repetition operator"); }
+        if (!items.length) { throw new Fail("missing argument to repetition operator"); }
+        items[items.length - 1] = { t: "rep", sub: items[items.length - 1], min: rep.min, max: rep.max };
+        i = rep.end; lastRepeat = true; continue;
+      }
+      lastRepeat = false;
+      items.push(parseAtom());
+    }
+    return { t: "cat", a: items };
+  }
+  function parseAlt() {
+    var alts = [parseConcat()];
+    while (a[i] === "|") { i++; lastRepeat = false; alts.push(parseConcat()); }
+    lastRepeat = false;
+    return alts.length === 1 ? alts[0] : { t: "alt", a: alts };
+  }
+  var ast;
+  try {
+    ast = parseAlt();
+    if (i < a.length) { throw new Fail("unexpected )"); }
+  } catch (ex) {
+    if (ex instanceof Fail) { return { error: ex.goErr }; }
+    if (ex instanceof Unm) { return { unmodelled: ex.unm }; }
+    throw ex;
+  }
+  var prog = [];
+  function emit(n) {
+    var k;
+    if (n.t === "ch" || n.t === "bot" || n.t === "eot" || n.t === "wb" || n.t === "nwb") { prog.push({ op: n.t, f: n.f }); return; }
+    if (n.t === "cat") { n.a.forEach(emit); return; }
+    if (n.t === "grp") { emit(n.sub); return; }
+    if (n.t === "alt") {
+      var jumps = [];
+      for (k = 0; k < n.a.length - 1; k++) { var sp = { op: "split" }; prog.push(sp); sp.x = prog.length; emit(n.a[k]); var jp = { op: "jmp" }; prog.push(jp); jumps.push(jp); sp.y = prog.length; }
+      emit(n.a[n.a.length - 1]);
+      jumps.forEach(function (j) { j.x = prog.length; });
+      return;
+    }
+    for (k = 0; k < n.min; k++) { emit(n.sub); }
+    if (n.max === -1) { var top = prog.length, loop = { op: "split", x: top + 1 }; prog.push(loop); emit(n.sub); prog.push({ op: "jmp", x: top }); loop.y = prog.length; return; }
+    var skips = [];
+    for (k = n.min; k < n.max; k++) { var opt = { op: "split" }; prog.push(opt); opt.x = prog.length; skips.push(opt); emit(n.sub); }
+    skips.forEach(function (s) { s.y = prog.length; });
+  }
+  emit(ast);
+  prog.push({ op: "match" });
+  return {
+    test: function (str) {
+      /* unanchored search, as Go's MatchString does; the anchors are ordinary instructions */
+      var s = Array.from(str), n = s.length, mark = new Int32Array(prog.length).fill(-1), list = [];
+      function add(into, pc, pos) {
+        var stack = [pc];
+        while (stack.length) {
+          var p = stack.pop();
+          if (mark[p] === pos) { continue; }
+          mark[p] = pos;
+          var ins = prog[p];
+          if (ins.op === "match") { return true; }
+          if (ins.op === "jmp") { stack.push(ins.x); }
+          else if (ins.op === "split") { stack.push(ins.y); stack.push(ins.x); }
+          else if (ins.op === "bot") { if (pos === 0) { stack.push(p + 1); } }
+          else if (ins.op === "eot") { if (pos === n) { stack.push(p + 1); } }
+          else if (ins.op === "wb" || ins.op === "nwb") { if ((isWord(s[pos - 1]) !== isWord(s[pos])) === (ins.op === "wb")) { stack.push(p + 1); } }
+          else { into.push(p); }
+        }
+        return false;
+      }
+      if (add(list, 0, 0)) { return true; }
+      for (var pos = 0; pos < n; pos++) {
+        var nl = [], c = s[pos];
+        for (var q = 0; q < list.length; q++) { if (prog[list[q]].f(c) && add(nl, list[q] + 1, pos + 1)) { return true; } }
+        if (add(nl, 0, pos + 1)) { return true; }
+        list = nl;
+      }
+      return false;
+    }
+  };
+}
+function dockerCompile(pat) {
+  var reg = "^", type = "exact", a = Array.from(pat), pos = 0, warn = [];
+  for (var i = 0; pos < a.length; i++) {
+    var ch = a[pos++];
+    if (ch === "*") {
+      if (a[pos] === "*") {
+        pos++;
+        if (a[pos] === "/") { pos++; }
+        if (pos >= a.length) {
+          if (type === "exact") { type = "prefix"; } else { reg += ".*"; type = "regexp"; }
+        } else { reg += "(.*/)?"; type = "regexp"; }
+        if (i === 0) { type = "suffix"; }
+      } else { reg += "[^/]*"; type = "regexp"; }
+    } else if (ch === "?") { reg += "[^/]"; type = "regexp"; }
+    else if (GO_ESCAPED.indexOf(ch) >= 0) { reg += "\\" + ch; }
+    else if (ch === "\\") {
+      if (pos < a.length) { reg += "\\" + a[pos++]; type = "regexp"; } else { reg += "\\"; }
+    } else if (ch === "[" || ch === "]") { reg += ch; type = "regexp"; }
+    else { reg += ch; }
+  }
+  var P = { type: type, clean: pat, warn: warn };
+  if (type === "regexp") {
+    reg += "$";
+    P.goRegex = reg;
+    if (/[|{}]/.test(pat.replace(/\\./g, ""))) { warn.push("contains | { or }. patternmatcher does not escape these (its escape table only reaches characters below code 64), so Go's regular expression engine sees them: | splits the line into alternatives and {n} repeats the character before it. The Docker column follows that reading"); }
+    var conv = goRegex(reg, warn);
+    if (conv.unmodelled) { P.unmodelled = conv.unmodelled; return P; }
+    if (conv.error) { P.error = "error parsing regexp: " + conv.error; return P; }
+    P.re = conv;
+  }
+  return P;
+}
+function dockerPatMatch(P, path) {
+  switch (P.type) {
+    case "exact": return path === P.clean;
+    case "prefix": return path.indexOf(P.clean.slice(0, -2)) === 0;
+    case "suffix":
+      var suf = P.clean.slice(2);
+      if (suf === "" || path.slice(-suf.length) === suf) { return true; }
+      return suf[0] === "/" && path === suf.slice(1);
+    default: return P.re.test(path);
+  }
+}
+function withoutTrailingGlob(s) {
+  if (s.slice(-3) === "/**") { s = s.slice(0, -3); }
+  if (s.slice(-2) === "/*") { s = s.slice(0, -2); }
+  return s;
+}
+function parseDocker(text) {
+  var lines = splitLines(text), recs = [], fatal = null, unmodelled = null;
+  for (var i = 0; i < lines.length; i++) {
+    var b = lines[i];
+    if (b.slice(-1) === "\r") { b = b.slice(0, -1); }
+    if (i === 0 && b.charCodeAt(0) === 0xFEFF) { b = b.slice(1); }
+    var rec = { n: i + 1, text: b, kind: "pattern" };
+    recs.push(rec);
+    if (b[0] === "#") { rec.kind = "comment"; continue; }
+    var p = goTrim(b);
+    if (p === "") { rec.kind = "blank"; continue; }
+    var inv = p[0] === "!";
+    if (inv) { p = goTrim(p.slice(1)); }
+    if (p.length > 0) {
+      p = goClean(p);
+      if (p.length > 1 && p[0] === "/") { p = p.slice(1); }
+    }
+    if (inv) { p = "!" + p; }
+    /* PatternMatcher New */
+    p = goClean(goTrim(p));
+    if (p === "!") { rec.kind = "error"; rec.why = "illegal exclusion pattern: \"!\""; if (!fatal) { fatal = rec; } continue; }
+    rec.excl = p[0] === "!";
+    var body = rec.excl ? p.slice(1) : p;
+    rec.pat = body;
+    if (body === "." && !rec.excl) { rec.kind = "dot"; rec.why = "the pattern . is ignored (D1)"; continue; }
+    var se = goMatchSyntax(body);
+    if (se) { rec.kind = "error"; rec.why = se + " (Go's filepath.Match rejects it)"; if (!fatal) { fatal = rec; } continue; }
+    rec.P = dockerCompile(body);
+    if (rec.P.error) { rec.lazyError = rec.P.error; }
+    if (rec.P.unmodelled) { rec.kind = "unmodelled"; rec.why = rec.P.unmodelled; if (!unmodelled) { unmodelled = rec; } continue; }
+  }
+  var active = recs.filter(function (r) { return r.kind === "pattern"; });
+  var exclusions = active.some(function (r) { return r.excl; });
+  var onlyPrefix = true;
+  active.forEach(function (r) { if (r.excl && /[*\[\]?^\\]/.test(withoutTrailingGlob(r.pat))) { onlyPrefix = false; } });
+  return { recs: recs, active: active, fatal: fatal, unmodelled: unmodelled, exclusions: exclusions, onlyPrefix: onlyPrefix };
+}
+function dockerMatchNode(D, node, parentInfo) {
+  var matched = false, info = [], last = null;
+  for (var i = 0; i < D.active.length; i++) {
+    var r = D.active[i], m = false;
+    if (parentInfo) { m = parentInfo[i]; }
+    if (!m) {
+      if (r.excl !== matched) { info[i] = false; continue; }
+      if (r.lazyError) { throw { lazy: r, node: node }; }
+      m = dockerPatMatch(r.P, node);
+      if (!m && !parentInfo) {
+        var segs = node.split("/");
+        for (var k = 1; k < segs.length && !m; k++) { m = dockerPatMatch(r.P, segs.slice(0, k).join("/")); }
+      }
+    }
+    info[i] = m;
+    if (m) { matched = !r.excl; last = r; }
+  }
+  return { matched: matched, info: info, last: last };
+}
+function dockerEval(D, path, isDir, cache) {
+  var segs = path.split("/"), parentInfo = null, walkNotes = [];
+  for (var k = 0; k < segs.length; k++) {
+    var node = segs.slice(0, k + 1).join("/"), nodeIsDir = k < segs.length - 1 || isDir;
+    var key = node + (nodeIsDir ? "/" : ""), c = cache ? cache.get(key) : null;
+    if (!c) {
+      var r = dockerMatchNode(D, node, parentInfo);
+      c = { r: r, skip: false, walkWhy: null };
+      if (nodeIsDir && r.matched) {
+        if (D.onlyPrefix) {
+          if (!D.exclusions) { c.skip = true; }
+          else {
+            var found = null;
+            for (var j = 0; j < D.active.length; j++) {
+              var x = D.active[j];
+              if (x.excl && (withoutTrailingGlob(x.pat) + "/").indexOf(node + "/") === 0) { found = x; break; }
+            }
+            if (found) { c.walkWhy = "Docker walks into " + node + "/ because line " + found.n + " names a path inside it (D4)."; }
+            else { c.skip = true; }
+          }
+        } else {
+          c.walkWhy = "Docker walks into " + node + "/ because an exception line contains a wildcard, so it cannot rule out a match inside (D4).";
+        }
+      }
+      if (cache) { cache.set(key, c); }
+    }
+    if (k < segs.length - 1) {
+      if (c.skip) { return { excluded: true, line: c.r.last, skippedDir: node, walkNotes: walkNotes }; }
+      if (c.walkWhy) { walkNotes.push(c.walkWhy); }
+      parentInfo = c.r.info;
+    } else {
+      return { excluded: c.r.matched, line: c.r.last, skippedDir: null, walkNotes: walkNotes };
+    }
+  }
+}
+function dockerIgnoreFileFor(dockerfile) {
+  var d = String(dockerfile || "").trim().replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
+  if (!d) { d = "Dockerfile"; }
+  return { dockerfile: d, specific: d + ".dockerignore", root: ".dockerignore" };
+}
+
+/* ---------- compare ---------- */
+function explain(p, g, dk) {
+  if (g.ignored && !dk.excluded) {
+    if (g.viaParent && g.noEffect.length) { return "G3 / D4: line " + g.noEffect[0].n + " re-includes this path in Docker, which tests a ! line against the file itself. In git it has no effect, because gitignore(5) says it is not possible to re-include a file if a parent directory of that file is excluded."; }
+    if (g.line && g.line.nodir && (g.viaParent ? g.viaParent.indexOf("/") >= 0 : p.path.indexOf("/") >= 0)) { return "G4 / D5: line " + g.line.n + " has no slash before its end, so git matches it at any depth; Docker anchors every pattern at the context root, so it only matches at the top level."; }
+    if (g.line && /\*\*/.test(g.line.pat || "")) { return "G7 / D2: line " + g.line.n + " uses ** and the two tools treat that run of asterisks differently."; }
+    return "git ignores this path at line " + (g.line ? g.line.n : "?") + " and Docker does not; no catalogued rule matched this difference, compare the two deciding lines.";
+  }
+  if (!g.ignored && dk.excluded) {
+    if (dk.line && /\/\s*$/.test(dk.line.text) && !p.isDir && (dk.skippedDir === null)) { return "G5 / D6: line " + dk.line.n + " ends with a slash. git reads that as directories only, so the file is not ignored; Docker removes the slash when it cleans the pattern, so the file is excluded."; }
+    if (g.line && g.line.neg) { return "G3 / D3: git's last matching line is the ! at line " + g.line.n + "; in Docker, line " + dk.line.n + " decides."; }
+    if (dk.line && /\*\*/.test(dk.line.pat || "")) { return "G7 / D2: line " + dk.line.n + " uses ** and the two tools treat that run of asterisks differently."; }
+    return "Docker excludes this path at line " + (dk.line ? dk.line.n : "?") + " and git does not; no catalogued rule matched this difference, compare the two deciding lines.";
+  }
+  return null;
+}
+function compare(ignoreText, pathText, dockerfile) {
+  var G = parseGit(ignoreText), D = parseDocker(ignoreText), PL = parsePaths(pathText);
+  var gc = new Map(), dc = new Map(), rows = [], lazy = null;
+  PL.paths.forEach(function (p) {
+    if (p.error) { rows.push({ p: p }); return; }
+    var g = gitEval(G, p.path, p.isDir, gc);
+    var dk = null;
+    if (!D.fatal && !D.unmodelled && !lazy) {
+      try { dk = dockerEval(D, p.path, p.isDir, dc); } catch (ex) { if (ex && ex.lazy) { lazy = { rec: ex.lazy, path: ex.node }; } else { throw ex; } }
+    }
+    var differs = !!dk && g.ignored !== dk.excluded;
+    rows.push({ p: p, g: g, d: dk, differs: differs, why: differs ? explain(p, g, dk) : null });
+  });
+  if (lazy) { rows.forEach(function (x) { if (x.g) { x.d = null; x.differs = false; x.why = null; } }); }
+  var sel = dockerIgnoreFileFor(dockerfile), extra = [];
+  if (!D.fatal && !D.unmodelled && !lazy) {
+    [sel.dockerfile, ".dockerignore", sel.specific].forEach(function (f) {
+      try { var r = dockerEval(D, f, false, dc); if (r.excluded) { extra.push(f); } } catch (ex) { if (!(ex && ex.lazy)) { throw ex; } }
+    });
+  }
+  var lazyRecs = D.active.filter(function (r) { return r.lazyError; });
+  return { G: G, D: D, PL: PL, rows: rows, sel: sel, sentAnyway: extra, lazy: lazy, lazyRecs: lazyRecs };
+}
+
+return { parseGit: parseGit, parseDocker: parseDocker, parsePaths: parsePaths, gitEval: gitEval, dockerEval: dockerEval, compare: compare, goClean: goClean, wildmatch: wildmatch, dockerIgnoreFileFor: dockerIgnoreFileFor };
+})();
+/* ENGINE END */
+
+/* ---------- rendering (DOM only, never innerHTML with input) ---------- */
+function el(tag, attrs) {
+  var e = document.createElement(tag);
+  if (attrs) { Object.keys(attrs).forEach(function (k) { if (k === "text") { e.textContent = attrs[k]; } else if (k === "cls") { e.className = attrs[k]; } else { e.setAttribute(k, attrs[k]); } }); }
+  for (var i = 2; i < arguments.length; i++) { var c = arguments[i]; if (c === null || c === undefined) { continue; } e.appendChild(typeof c === "string" ? document.createTextNode(c) : c); }
+  return e;
+}
+function tag(text, cls) { return el("span", { cls: "tag " + cls, text: text }); }
+function lineText(r) { return r ? "line " + r.n + ": " + r.text : "no line matches"; }
+
+var EXAMPLES = [
+  { label: "Worked example", ignore: "target\nnode_modules\n!node_modules/keep.txt\n*.md\n!README.md\nfoo/\n*.log\n", paths: "target/a.txt\nsrc/target/b.txt\nnode_modules/keep.txt\nnode_modules/x.js\ndocs/README.md\ndocs/x.md\nREADME.md\nx.md\nbuild.log\nlogs/build.log\nfoo\n", dockerfile: "Dockerfile" },
+  { label: "Anchored with **", ignore: "**/target\n/dist\nbuild/\n**/*.tmp\n", paths: "target/a.txt\nsrc/target/b.txt\ndist/app.js\nsrc/dist/app.js\nbuild/out.bin\nbuild\nsrc/build/out.bin\ncache/x.tmp\n", dockerfile: "docker/build.Dockerfile" },
+  { label: "Exception ordering", ignore: "*.md\n!GUIDE*.md\nGUIDE-private.md\n", paths: "notes.md\nGUIDE.md\nGUIDE-private.md\nsub/notes.md\n", dockerfile: "" },
+  { label: "Clear", ignore: "", paths: "", dockerfile: "" }
+];
+var IN = { ignore: document.getElementById("in-ignore"), paths: document.getElementById("in-paths"), dockerfile: document.getElementById("in-dockerfile"), diffonly: document.getElementById("in-diffonly") };
+var MAX_PATHS = 20000;
+
+function run() {
+  var sumHost = document.getElementById("summary"), notesHost = document.getElementById("notes"), host = document.getElementById("result");
+  sumHost.textContent = ""; notesHost.textContent = ""; host.textContent = "";
+  var pathText = IN.paths.value, capped = false;
+  var lines = pathText.split("\n");
+  if (lines.length > MAX_PATHS) { pathText = lines.slice(0, MAX_PATHS).join("\n"); capped = true; }
+  var R = ENGINE.compare(IN.ignore.value, pathText, IN.dockerfile.value);
+  var notes = [];
+  R.G.warnings.forEach(function (w) { notes.push(["warn", w]); });
+  R.PL.notes.forEach(function (w) { notes.push(["info", w]); });
+  if (capped) { notes.push(["warn", "Only the first " + MAX_PATHS + " path lines were evaluated."]); }
+  R.G.recs.forEach(function (r) { if (r.kind === "invalid" || r.kind === "unmodelled") { notes.push(["warn", "git, line " + r.n + " (" + r.text + "): " + r.why + "."]); } });
+  R.D.recs.forEach(function (r) {
+    if (r.kind === "dot" || r.kind === "unmodelled") { notes.push(["warn", "Docker, line " + r.n + " (" + r.text + "): " + r.why + "."]); }
+    if (r.P && r.P.warn) { r.P.warn.forEach(function (w) { notes.push(["warn", "Docker, line " + r.n + ": " + w + "."]); }); }
+  });
+  notes.push(["info", "D7: with the Dockerfile at " + R.sel.dockerfile + ", Docker reads " + R.sel.specific + " if it exists, otherwise " + R.sel.root + " at the context root. The text above is evaluated as whichever of the two applies."]);
+  if (R.sentAnyway.length) { notes.push(["warn", "D8: this file excludes " + R.sentAnyway.join(" and ") + ". Docker still sends the Dockerfile and the ignore file to the builder because the build needs them, but COPY, ADD and bind mounts cannot use them."]); }
+  if (R.D.unmodelled && !R.D.fatal) {
+    notesHost.appendChild(el("div", { cls: "warn-box" }, el("strong", { text: "Docker column not modelled. " }), "Line " + R.D.unmodelled.n + " (" + R.D.unmodelled.text + ") " + R.D.unmodelled.why + ", so this page does not guess any Docker verdict for this file."));
+  }
+  if (R.lazy) {
+    notesHost.appendChild(el("div", { cls: "err-box", role: "alert" }, el("strong", { text: "Docker would fail the build. " }), "Line " + R.lazy.rec.n + " (" + R.lazy.rec.text + ") passes Go's filepath.Match syntax check but does not compile as a Go regular expression. patternmatcher compiles it the first time it tests the line, here against " + R.lazy.path + ", and the build stops with: failed to match excludepatterns: syntax error in pattern."));
+  } else if (R.lazyRecs.length && !R.D.fatal) {
+    R.lazyRecs.forEach(function (r) { notesHost.appendChild(el("div", { cls: "warn-box" }, el("strong", { text: "Note: " }), "Docker, line " + r.n + " (" + r.text + ") does not compile as a Go regular expression. None of the listed paths reached it; Docker only fails the build if it tests that line against some path in the context.")); });
+  }
+  if (R.D.fatal) {
+    notesHost.appendChild(el("div", { cls: "err-box", role: "alert" }, el("strong", { text: "Docker would reject this file. " }), "Line " + R.D.fatal.n + " (" + R.D.fatal.text + "): " + R.D.fatal.why + ". The build fails before any file is sent, so the Docker column is empty."));
+  }
+  notes.forEach(function (n) {
+    notesHost.appendChild(el("div", { cls: n[0] === "warn" ? "warn-box" : "panel" }, n[0] === "warn" ? el("strong", { text: "Note: " }) : null, n[1]));
+  });
+  var rows = R.rows, valid = rows.filter(function (x) { return !x.p.error; });
+  if (!rows.length) { sumHost.appendChild(el("p", { cls: "note", text: "Enter at least one path to compare." })); return; }
+  var nd = valid.filter(function (x) { return x.differs; }).length;
+  sumHost.appendChild(el("p", {}, el("strong", { text: valid.length + " path" + (valid.length === 1 ? "" : "s") + " evaluated, " + nd + " differ" + (nd === 1 ? "s" : "") + "." }), " Verdicts are per gitignore(5) for git and per the Docker docs and the patternmatcher and fsutil source for Docker."));
+  var t = el("table");
+  t.appendChild(el("caption", { text: "git and Docker verdict for each path" }));
+  t.appendChild(el("thead", {}, el("tr", {}, el("th", { scope: "col", text: "Path" }), el("th", { scope: "col", text: "git: ignored?" }), el("th", { scope: "col", text: "Docker: excluded?" }), el("th", { scope: "col", text: "Differ?" }))));
+  var tb = el("tbody"), frag = document.createDocumentFragment(), only = IN.diffonly.checked;
+  rows.forEach(function (x) {
+    if (x.p.error) {
+      if (!only) { frag.appendChild(el("tr", {}, el("td", {}, el("code", { text: x.p.raw })), el("td", { colspan: "3", cls: "t-err", text: "Skipped: " + x.p.error })));}
+      return;
+    }
+    if (only && !x.differs) { return; }
+    var gcell = el("td", {}, x.g.ignored ? tag("IGNORED", "t-err") : tag("kept", "t-ok"), el("span", { cls: "line", text: lineText(x.g.line) + (x.g.viaParent ? " (excludes the parent " + x.g.viaParent + "/)" : "") }));
+    x.g.noEffect.forEach(function (r) { gcell.appendChild(el("span", { cls: "noeffect", text: "line " + r.n + ": " + r.text })); gcell.appendChild(el("span", { cls: "line", text: "no effect: parent excluded (G3)" })); });
+    var dcell;
+    if (!x.d) { dcell = (R.D.unmodelled && !R.D.fatal && !R.lazy) ? el("td", {}, tag("not modelled", "t-warn"), el("span", { cls: "line", text: "see the note above" })) : el("td", {}, tag("BUILD FAILS", "t-err"), el("span", { cls: "line", text: "see the note above" })); }
+    else {
+      dcell = el("td", {}, x.d.excluded ? tag("EXCLUDED", "t-err") : tag("sent", "t-ok"), el("span", { cls: "line", text: lineText(x.d.line) + (x.d.skippedDir ? " (Docker does not walk into " + x.d.skippedDir + "/)" : "") }));
+      x.d.walkNotes.forEach(function (w) { dcell.appendChild(el("span", { cls: "line", text: w })); });
+    }
+    var label = x.p.path + (x.p.isDir ? "/" : "");
+    var tr = el("tr", { cls: x.differs ? "differs" : "" }, el("td", {}, el("code", { text: label })), gcell, dcell, el("td", {}, x.differs ? tag("DIFFERS", "t-warn") : el("span", { text: x.d ? "same" : "n/a" })));
+    frag.appendChild(tr);
+    if (x.differs) { frag.appendChild(el("tr", { cls: "why" }, el("td", { colspan: "4", text: x.why }))); }
+  });
+  tb.appendChild(frag);
+  t.appendChild(tb);
+  host.appendChild(t);
+}
+
+/* ---------- self test ---------- */
+function V(ignore, path, git, docker) { return { ignore: ignore, path: path, git: git, docker: docker }; }
+var WE = "target\nnode_modules\n!node_modules/keep.txt\n*.md\n!README.md\nfoo/\n*.log\n";
+var CASES = [
+  /* worked example, git column executed with git check-ignore, Docker column with a real build */
+  { name: "worked example: target/a.txt", c: V(WE, "target/a.txt", [true, 1], [true, 1]) },
+  { name: "worked example: src/target/b.txt (G4 vs D5)", c: V(WE, "src/target/b.txt", [true, 1], [false, null]) },
+  { name: "worked example: node_modules/keep.txt (G3 vs D4)", c: V(WE, "node_modules/keep.txt", [true, 2], [false, 3]) },
+  { name: "worked example: node_modules/x.js", c: V(WE, "node_modules/x.js", [true, 2], [true, 2]) },
+  { name: "worked example: docs/README.md", c: V(WE, "docs/README.md", [false, 5], [false, null]) },
+  { name: "worked example: docs/x.md (G4 vs D5)", c: V(WE, "docs/x.md", [true, 4], [false, null]) },
+  { name: "worked example: README.md", c: V(WE, "README.md", [false, 5], [false, 5]) },
+  { name: "worked example: x.md", c: V(WE, "x.md", [true, 4], [true, 4]) },
+  { name: "worked example: build.log", c: V(WE, "build.log", [true, 7], [true, 7]) },
+  { name: "worked example: logs/build.log (G4 vs D5)", c: V(WE, "logs/build.log", [true, 7], [false, null]) },
+  { name: "worked example: foo as a file (G5 vs D6)", c: V(WE, "foo", [false, null], [true, 6]) },
+  /* git rules */
+  { name: "G1: blank and comment lines match nothing", c: V("\n# keep.txt\n", "# keep.txt", [false, null], [false, null]) },
+  { name: "G1: \\# makes a literal hash", c: V("\\#notes\n", "#notes", [true, 1], null) },
+  { name: "G2: trailing spaces are ignored", c: V("cache   \n", "cache", [true, 1], [true, 1]) },
+  { name: "G2: a backslash keeps one trailing space", c: V("cache\\ \n", "cache ", [true, 1], null) },
+  { name: "G3: ! re-includes a file excluded earlier", c: V("*.log\n!keep.log\n", "keep.log", [false, 2], [false, 2]) },
+  { name: "G3: no re-include under an excluded directory", c: V("vendor/\n!vendor/lib.js\n", "vendor/lib.js", [true, 1], [false, 2]) },
+  { name: "G4: a middle slash anchors the pattern", c: V("doc/frotz\n", "a/doc/frotz", [false, null], [false, null]) },
+  { name: "G4: no slash matches at any level", c: V("frotz\n", "a/b/frotz", [true, 1], [false, null]) },
+  { name: "G4: leading slash anchors to the root", c: V("/dist\n", "src/dist", [false, null], [false, null]) },
+  { name: "G5: trailing slash matches a directory", c: V("frotz/\n", "a/frotz/x.txt", [true, 1], [false, null]) },
+  { name: "G5: trailing slash does not match a file", c: V("frotz/\n", "frotz", [false, null], [true, 1]) },
+  { name: "G6: * does not cross a slash", c: V("src/*.js\n", "src/lib/a.js", [false, null], [false, null]) },
+  { name: "G6: ? matches one character", c: V("file?.txt\n", "file1.txt", [true, 1], [true, 1]) },
+  { name: "G6: a range matches", c: V("log[0-9].txt\n", "log7.txt", [true, 1], [true, 1]) },
+  { name: "G6: trailing backslash never matches", c: V("abc\\\n", "abc\\", [false, null], "error") },
+  { name: "G7: leading **/ matches at any depth", c: V("**/foo\n", "x/y/foo", [true, 1], [true, 1]) },
+  { name: "G7: trailing /** matches everything inside", c: V("abc/**\n", "abc/d/e.txt", [true, 1], [true, 1]) },
+  { name: "G7: /**/ matches zero directories", c: V("a/**/b\n", "a/b", [true, 1], [true, 1]) },
+  { name: "G7: other ** runs are ordinary asterisks (Docker's D2 regex still spans directories)", c: V("foo**bar\n", "foo/x/bar", [false, null], [true, 1]) },
+  /* Docker rules */
+  { name: "D1: a UTF-8 BOM on line 1 is stripped", c: V("\ufefftarget\n", "target", [true, 1], [true, 1]) },
+  { name: "D1: leading slash is disregarded", c: V("/foo/bar\n", "foo/bar", [true, 1], [true, 1]) },
+  { name: "D1: the pattern . is ignored", c: V(".\n", "anything.txt", null, [false, null]) },
+  { name: "D1: an indented # is a pattern, not a comment", c: V("  #x\n", "#x", null, [true, 1]) },
+  { name: "D2: * does not cross a slash", c: V("*.go\n", "cmd/main.go", null, [false, null]) },
+  { name: "D2: **/*.go reaches any depth", c: V("**/*.go\n", "cmd/tool/main.go", null, [true, 1]) },
+  { name: "D3: a parent directory match excludes the file", c: V("build\n", "build/out/app.bin", null, [true, 1]) },
+  { name: "D3: the last matching line decides", c: V("*.txt\n!a.txt\na.txt\n", "a.txt", null, [true, 3]) },
+  { name: "D4: an exception inside an excluded directory re-includes", c: V("cache\n!cache/keep\n", "cache/keep", null, [false, 2]) },
+  { name: "D4: a wildcard exception also re-includes", c: V("cache\n!cache/*.keep\n", "cache/a.keep", null, [false, 2]) },
+  { name: "D4: other files in that directory stay excluded", c: V("cache\n!cache/keep\n", "cache/drop", null, [true, 1]) },
+  { name: "D5: no implicit **/ in front", c: V("target\n", "src/target/x", null, [false, null]) },
+  { name: "D6: foo/ excludes a file named foo", c: V("foo/\n", "foo", null, [true, 1]) },
+  { name: "D7: a Dockerfile-specific ignore file is named after it", c: { fn: function () { var s = ENGINE.dockerIgnoreFileFor("docker/build.Dockerfile"); return s.specific === "docker/build.Dockerfile.dockerignore" && s.root === ".dockerignore"; }, expect: "docker/build.Dockerfile.dockerignore, else .dockerignore" } },
+  { name: "D8: an excluded Dockerfile is reported as still sent", c: { fn: function () { return ENGINE.compare("Dockerfile\n", "a.txt", "Dockerfile").sentAnyway.indexOf("Dockerfile") >= 0; }, expect: "Dockerfile listed as still sent" } },
+  { name: "D1: a lone ! makes Docker reject the file", c: V("!\n", "a", null, "error") },
+  { name: "D2: an unclosed [ makes Docker reject the file", c: V("[a\n", "a", null, "error") },
+  { name: "D2: filepath.Match only checks what it reaches; [] after a star compiles", c: V("a*[]a]\n", "aba", null, [true, 1]) },
+  { name: "D2: an uncompilable exception is harmless while nothing is excluded", c: V("!a*[\n", "a1", null, [false, null]) },
+  { name: "D2: the same exception fails the build once a path is excluded", c: V("x\n!a*[\n", "x", null, "error") },
+  /* Docker docs examples, own file names */
+  { name: "docs */temp*: immediate subdirectory", c: V("# comment\n*/temp*\n*/*/temp*\ntemp?\n", "alpha/tempfile.txt", null, [true, 2]) },
+  { name: "docs */*/temp*: two levels down", c: V("# comment\n*/temp*\n*/*/temp*\ntemp?\n", "alpha/beta/temp-old.txt", null, [true, 3]) },
+  { name: "docs temp?: one character after temp at the root", c: V("# comment\n*/temp*\n*/*/temp*\ntemp?\n", "tempz", null, [true, 4]) },
+  { name: "docs temp?: two characters do not match", c: V("# comment\n*/temp*\n*/*/temp*\ntemp?\n", "tempzz", null, [false, null]) },
+  { name: "docs ordering 1: GUIDE-private.md excluded", c: V("*.md\n!GUIDE*.md\nGUIDE-private.md\n", "GUIDE-private.md", null, [true, 3]) },
+  { name: "docs ordering 1: GUIDE.md included", c: V("*.md\n!GUIDE*.md\nGUIDE-private.md\n", "GUIDE.md", null, [false, 2]) },
+  { name: "docs ordering 2: the middle line has no effect", c: V("*.md\nGUIDE-private.md\n!GUIDE*.md\n", "GUIDE-private.md", null, [false, 3]) },
+  /* patternmatcher v0.6.1 as Docker CLI 29.8.2 and buildx v0.37.2 ship it, checked with the Go library itself */
+  { name: "D2: | is not escaped by patternmatcher, so [ab]| matches any path", c: V("[ab]|\n", "zz", [false, null], [true, 1]) },
+  { name: "D2: {2} after a character is a Go repeat, so ?a{2} matches xaa", c: V("?a{2}\n", "xaa", [false, null], [true, 1]) },
+  { name: "D2: and ?a{2} does not match the literal text xa{2}", c: V("?a{2}\n", "xa{2}", [true, 1], [false, null]) },
+  { name: "D2: a repeat after * is a Go regexp error, so a*{2} fails the build once tested", c: V("a*{2}\n", "aa", null, "error") },
+  { name: "matching time: twelve *a runs against forty a characters finish (no backtracking)", c: V("*a*a*a*a*a*a*a*a*a*a*a*a*b\n", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", [false, null], [false, null]) }
+];
+var CONTROL = { name: "positive control: asserts Docker excludes src/target/b.txt (it must not)", c: V(WE, "src/target/b.txt", null, [true, 1]) };
+function evalCase(c) {
+  if (c.fn) { var ok = c.fn(); return { ok: ok, got: ok ? "as expected" : "unexpected" }; }
+  var R = ENGINE.compare(c.ignore, c.path, "Dockerfile"), row = R.rows[0], parts = [], ok2 = true;
+  if (c.git) {
+    var gl = row.g.line ? row.g.line.n : null;
+    var gok = row.g.ignored === c.git[0] && gl === c.git[1];
+    ok2 = ok2 && gok; parts.push("git " + (row.g.ignored ? "ignored" : "kept") + " (line " + (gl === null ? "none" : gl) + ")");
+  }
+  if (c.docker === "error") {
+    var dok = !!R.D.fatal || !!R.lazy; ok2 = ok2 && dok; parts.push(dok ? "Docker rejects the file" : "Docker accepted the file");
+  } else if (c.docker) {
+    if (R.D.fatal) { ok2 = false; parts.push("Docker rejected the file"); }
+    else {
+      var dl = row.d.line ? row.d.line.n : null;
+      var dk = row.d.excluded === c.docker[0] && dl === c.docker[1];
+      ok2 = ok2 && dk; parts.push("Docker " + (row.d.excluded ? "excluded" : "sent") + " (line " + (dl === null ? "none" : dl) + ")");
+    }
+  }
+  return { ok: ok2, got: parts.join("; ") };
+}
+function expectText(c) {
+  if (c.fn) { return c.expect; }
+  var s = [];
+  if (c.git) { s.push("git " + (c.git[0] ? "ignored" : "kept") + " (line " + (c.git[1] === null ? "none" : c.git[1]) + ")"); }
+  if (c.docker === "error") { s.push("Docker rejects the file"); }
+  else if (c.docker) { s.push("Docker " + (c.docker[0] ? "excluded" : "sent") + " (line " + (c.docker[1] === null ? "none" : c.docker[1]) + ")"); }
+  return s.join("; ");
+}
+function runSelfTest() {
+  var host = document.getElementById("self"); host.textContent = "";
+  var t = el("table"); t.appendChild(el("caption", { text: "Self test results" }));
+  t.appendChild(el("thead", {}, el("tr", {}, el("th", { scope: "col", text: "Case" }), el("th", { scope: "col", text: "Path" }), el("th", { scope: "col", text: "Expected" }), el("th", { scope: "col", text: "Result" }))));
+  var tb = el("tbody"), pass = 0, failN = 0;
+  CASES.forEach(function (k) {
+    var r;
+    try { r = evalCase(k.c); } catch (ex) { r = { ok: false, got: "threw " + ex.message }; }
+    if (r.ok) { pass++; } else { failN++; }
+    tb.appendChild(el("tr", {}, el("td", { text: k.name }), el("td", {}, el("code", { text: k.c.path || "" })), el("td", { text: expectText(k.c) }), el("td", {}, el("span", { cls: r.ok ? "t-ok" : "t-err", text: (r.ok ? "PASS: " : "FAIL: ") + r.got }))));
+  });
+  var cr; try { cr = evalCase(CONTROL.c); } catch (ex) { cr = { ok: false, got: "threw" }; }
+  var controlFine = !cr.ok;
+  tb.appendChild(el("tr", {}, el("td", { text: CONTROL.name }), el("td", {}, el("code", { text: CONTROL.c.path })), el("td", { text: "this assertion must fail" }), el("td", {}, el("span", { cls: controlFine ? "t-ok" : "t-err", text: controlFine ? "Control failed as designed: " + cr.got : "Control held. The suite is not trustworthy." }))));
+  t.appendChild(tb);
+  host.appendChild(t);
+  var sum = document.getElementById("self-summary");
+  sum.textContent = pass + " of " + CASES.length + " checks pass, " + failN + " fail. Positive control " + (controlFine ? "failed as designed." : "did NOT fail, so these results cannot be trusted.");
+  sum.className = failN === 0 && controlFine ? "t-ok" : "t-err";
+  sum.setAttribute("data-pass", String(pass)); sum.setAttribute("data-fail", String(failN)); sum.setAttribute("data-control", controlFine ? "ok" : "held");
+}
+
+/* ---------- theme toggle ---------- */
+var themeBtn = document.getElementById("theme-toggle");
+function effectiveTheme() {
+  var a = document.documentElement.getAttribute("data-theme");
+  if (a === "dark" || a === "light") { return a; }
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+function setTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  themeBtn.textContent = t === "dark" ? "Light" : "Dark";
+  themeBtn.setAttribute("aria-label", t === "dark" ? "Switch to light theme" : "Switch to dark theme");
+}
+(function () {
+  var KEY = "theme";
+  setTheme(effectiveTheme());
+  themeBtn.addEventListener("click", function () {
+    var next = effectiveTheme() === "dark" ? "light" : "dark";
+    setTheme(next);
+    try { localStorage.setItem(KEY, next); } catch (e) {}
+  });
+})();
+
+/* ---------- wire up ---------- */
+var exHost = document.getElementById("examples");
+EXAMPLES.forEach(function (ex) {
+  var b = el("button", { type: "button", text: ex.label });
+  b.addEventListener("click", function () { IN.ignore.value = ex.ignore; IN.paths.value = ex.paths; IN.dockerfile.value = ex.dockerfile; run(); });
+  exHost.appendChild(b);
+});
+var timer = null;
+[IN.ignore, IN.paths, IN.dockerfile].forEach(function (n) { n.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(run, 200); }); });
+IN.diffonly.addEventListener("change", run);
+document.getElementById("btn-run").addEventListener("click", run);
+document.getElementById("btn-self").addEventListener("click", runSelfTest);
+IN.ignore.value = EXAMPLES[0].ignore; IN.paths.value = EXAMPLES[0].paths; IN.dockerfile.value = EXAMPLES[0].dockerfile;
+run();
+runSelfTest();
+})();
+</script>
+</body>
+</html>
