@@ -134,4 +134,4 @@ This is an independent tool. It is not affiliated with or endorsed by Docker, In
 
 ## License
 
-MIT. Copyright (c) 2026 0xelitesystem. See [LICENSE](LICENSE).
+MIT. Copyright (c) 2026 RBL Industries LLC. See [LICENSE](LICENSE).
