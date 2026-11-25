@@ -128,7 +128,7 @@ This is an independent tool. It is not affiliated with or endorsed by Docker, In
 
 ## Related
 
-- https://github.com/0xelitesystem/dockerfile-linter
+- https://github.com/0xelitesystem/containerfile-practice-checker
 - https://github.com/0xelitesystem/docker-basics-reference
 - https://github.com/0xelitesystem/git-basics-reference
 
